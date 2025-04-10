@@ -56,9 +56,6 @@ export class AudioFixDirective implements OnInit {
             <span *ngSwitchCase="'text'">{{ msg.content }}</span>
             <div *ngSwitchCase="'audio'" class="audio-wrapper">
               <audio controls [src]="msg.content"></audio>
-              <span class="duration" *ngIf="msg.duration">
-                {{ formatDuration(msg.duration) }}
-              </span>
             </div>
           </ng-container>
           <small class="timestamp">{{ msg.timestamp | date:'short' }}</small>
