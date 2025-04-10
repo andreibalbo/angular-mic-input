@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  mic:
+    container_name: mic
+    command: sleep infinity
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/app
+    ports:
+      - "4200:4200"
+    tty: true 
+    
