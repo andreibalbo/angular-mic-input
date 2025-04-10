@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, Directive, ElementRef, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
@@ -8,10 +8,32 @@ interface Message {
   timestamp: Date;
 }
 
+@Directive({
+  selector: 'audio',
+  standalone: true
+})
+export class AudioFixDirective implements OnInit {
+  constructor(private el: ElementRef<HTMLAudioElement>) {}
+
+  ngOnInit() {
+    const audio = this.el.nativeElement;
+
+    // Workaround for Chrome's infinity duration bug
+    audio.addEventListener('loadedmetadata', () => {
+      if (audio.duration === Infinity) {
+        audio.currentTime = 1e101;
+        audio.addEventListener('timeupdate', () => {
+          audio.currentTime = 0;
+        }, { once: true });
+      }
+    });
+  }
+}
+
 @Component({
   selector: 'app-mic',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AudioFixDirective],
   template: `
     <div class="container">
       <form (ngSubmit)="onSubmit()">
@@ -32,7 +54,12 @@ interface Message {
         <div *ngFor="let msg of messages" class="message">
           <ng-container [ngSwitch]="msg.type">
             <span *ngSwitchCase="'text'">{{ msg.content }}</span>
-            <audio *ngSwitchCase="'audio'" controls [src]="msg.content"></audio>
+            <div *ngSwitchCase="'audio'" class="audio-wrapper">
+              <audio controls [src]="msg.content"></audio>
+              <span class="duration" *ngIf="msg.duration">
+                {{ formatDuration(msg.duration) }}
+              </span>
+            </div>
           </ng-container>
           <small class="timestamp">{{ msg.timestamp | date:'short' }}</small>
         </div>
@@ -96,6 +123,17 @@ interface Message {
     audio {
       width: 100%;
     }
+
+    .audio-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .duration {
+      color: #666;
+      font-size: 0.8em;
+      min-width: 50px;
+    }
   `]
 })
 export class MicComponent {
@@ -104,6 +142,12 @@ export class MicComponent {
   mediaRecorder: MediaRecorder | null = null;
   isRecording = false;
   audioChunks: Blob[] = [];
+
+  formatDuration(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
 
   async startRecording() {
     try {
@@ -117,17 +161,17 @@ export class MicComponent {
         }
       };
 
-      this.mediaRecorder.onstop = () => {
+      this.mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
+
         this.messages.unshift({
           type: 'audio',
           content: audioUrl,
-          timestamp: new Date()
-        });
-        this.audioChunks = [];
+          timestamp: new Date(),
+        });;
         
-        // Stop all tracks in the stream
+        this.audioChunks = [];
         stream.getTracks().forEach(track => track.stop());
       };
 
